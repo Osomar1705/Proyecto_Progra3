@@ -4,5 +4,5 @@
 
 * Osmar Vilchez Aguirre
 * Royer Sebastian Ramos Vargas
-* Luciana Mylene Melgagrejo Quispe
+* Luciana Mylene Melgarejo Quispe
 
