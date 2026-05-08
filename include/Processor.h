@@ -1,17 +1,22 @@
-#ifndef PROCESSOR_H
-#define PROCESSOR_H
-
+#pragma once
+#include "Movie.h"
+#include <iostream>
 #include <string>
 #include <vector>
-#include "Movie.h"
+#include <unordered_set>
+
+using namespace std;
 
 class Processor {
+private:
+    unordered_set<string> stop_words;
+    
+    vector<string> parseCSVLine(const string& line);
+    void loadStopWords();
+
 public:
-    Processor() = default;
-    ~Processor() = default;
-
-    std::vector<Movie> loadMovies(const std::string& filepath);
-    std::vector<std::string> cleanString(const std::string& input);
+    Processor();
+    vector<Movie> loadMovies(const string& filename);
+    
+    vector<string> cleanAndSplitText(const string& text); 
 };
-
-#endif // PROCESSOR_H

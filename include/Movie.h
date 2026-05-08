@@ -1,15 +1,18 @@
 #ifndef MOVIE_H
 #define MOVIE_H
-
+#pragma once
 #include <string>
+using namespace std;
 #include <vector>
 
 struct Movie {
     int id;
-    std::string title;
-    std::string synopsis;
-    std::vector<std::string> tags;
-    float ranking;
+    string title;
+    string director;
+    string cast;
+    string genre;
+    string plot;
+    vector<string> clean_words;
 };
 
-#endif // MOVIE_H
+#endif  

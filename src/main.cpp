@@ -30,21 +30,40 @@ int main() {
 
         switch (option) {
             case 1: {
-                std::cout << "Ruta del archivo CSV: ";
+                std::cout << "Ruta del archivo CSV (ej. wiki_movie_plots_deduped.csv): ";
                 std::string path;
                 std::getline(std::cin, path);
-                // TODO: cargar peliculas con processor.loadMovies(path) y
-                // poblar el Trie iterando tokens de cleanString().
-                (void)path;
+                
+                std::cout << "Cargando y procesando datos... esto puede tomar un momento.\n";
+                movies = processor.loadMovies(path);
+                
+                if (movies.empty()) {
+                    std::cout << "Error: No se pudieron cargar las peliculas. Verifica la ruta.\n";
+                } else {
+                    std::cout << "Exito! Se cargaron " << movies.size() << " peliculas.\n";
+                    
+                }
                 break;
             }
             case 2: {
+                if (movies.empty()) {
+                    std::cout << "Por favor, carga los datos primero (Opcion 1).\n";
+                    break;
+                }
+                
                 std::cout << "Termino de busqueda: ";
                 std::string query;
                 std::getline(std::cin, query);
-                // TODO: tokenizar la query con processor.cleanString(),
-                // consultar trie.search() y mostrar las peliculas resultantes.
-                (void)query;
+                
+                std::vector<std::string> query_tokens = processor.cleanAndSplitText(query);
+                
+                std::cout << "Tokens procesados a buscar: ";
+                for (const auto& token : query_tokens) {
+                    std::cout << "[" << token << "] ";
+                }
+                std::cout << "\n";
+
+                
                 break;
             }
             case 3:
