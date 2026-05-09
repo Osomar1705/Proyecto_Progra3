@@ -24,7 +24,7 @@ void Trie::insert(const std::string& word, int movieId) {
         current = current->children[c];
         
         // Evitar duplicados de IDs en el mismo nodo
-        if (current->movieIds.empty() || current->movieIds.back() != movieId) {
+        if (std::find(current->movieIds.begin(), current->movieIds.end(), movieId) == current->movieIds.end()) {
             current->movieIds.push_back(movieId);
         }
     }
