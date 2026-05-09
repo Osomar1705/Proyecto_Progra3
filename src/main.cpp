@@ -7,7 +7,7 @@
 #include <algorithm>
 
 #include "Movie.h"
-#include "Processor.h"
+#include "DataProcessor.h"
 #include "Trie.h"
 
 using namespace std;
@@ -19,17 +19,14 @@ void insertWordSuffixes(Trie& trie, const string& word, int movieId) {
     }
 }
 
-void indexMovie(Trie& trie, Processor& processor, const Movie& m) {
-    vector<string> fields = {m.title, m.director, m.cast, m.genre, m.plot};
-    for (const string& field : fields) {
-        vector<string> words = processor.cleanAndSplitText(field);
-        for (const string& word : words) {
-            insertWordSuffixes(trie, word, m.id);
-        }
+void indexMovie(Trie& trie, DataProcessor& processor, const Movie& m) {
+    // Usamos las palabras ya limpias que se procesaron al cargar el CSV
+    for (const string& word : m.clean_words) {
+        insertWordSuffixes(trie, word, m.id);
     }
 }
 
-vector<int> getSimilarMovies(const set<int>& likedMovies, const vector<Movie>& allMovies, unordered_map<int, int>& movieIndexMap, Processor& processor) {
+vector<int> getSimilarMovies(const set<int>& likedMovies, const vector<Movie>& allMovies, unordered_map<int, int>& movieIndexMap, DataProcessor& processor) {
     if (likedMovies.empty()) return {};
 
     unordered_map<string, int> genreCount;
@@ -37,6 +34,7 @@ vector<int> getSimilarMovies(const set<int>& likedMovies, const vector<Movie>& a
 
     for (int mid : likedMovies) {
         const Movie& m = allMovies[movieIndexMap[mid]];
+        // Usamos cleanAndSplitText para los generos específicamente
         vector<string> genres = processor.cleanAndSplitText(m.genre);
         for (const string& g : genres) genreCount[g]++;
         
@@ -71,7 +69,7 @@ vector<int> getSimilarMovies(const set<int>& likedMovies, const vector<Movie>& a
 }
 
 int main() {
-    Processor processor;
+    DataProcessor processor;
     Trie trie;
     vector<Movie> movies;
     unordered_map<int, int> movieIndexMap; // Maps movie ID to index in 'movies' vector

@@ -19,20 +19,18 @@ Se ha seleccionado un **Trie (Árbol de Prefijos)** para almacenar el léxico de
 ## Algoritmos Implementados
 
 ### Pre-procesamiento
-1. **Tokenización:** El texto se limpia de caracteres no alfanuméricos.
+1. **Tokenización:** El texto se limpia de caracteres no alfanuméricos en la clase `DataProcessor`.
 2. **Normalización:** Todo el texto se convierte a minúsculas.
-3. **Stop-words:** Se filtran palabras comunes (the, and, or, etc.) que no aportan valor semántico a la búsqueda.
+3. **Stop-words:** Se filtran palabras comunes en inglés y español (the, and, el, la, etc.).
+4. **Optimización:** Las palabras se limpian una sola vez durante la carga del CSV y se almacenan en el objeto `Movie`, quedando listas para la estructura (Trie).
 
 ### Inserción (Pseudo-código)
 ```text
-Para cada Película P en la Base de Datos:
-    Campos = [P.Titulo, P.Director, P.Cast, P.Genero, P.Plot]
-    Para cada Campo en Campos:
-        Palabras = LimpiarYDividir(Campo)
-        Para cada Palabras W:
-            Para i desde 0 hasta longitud(W):
-                Sufijo = W.subcadena(i)
-                Trie.Insertar(Sufijo, P.ID)
+Para cada Película P en la Base de Datos (cargada por DataProcessor):
+    Para cada Palabra W en P.clean_words:
+        Para i desde 0 hasta longitud(W):
+            Sufijo = W.subcadena(i)
+            Trie.Insertar(Sufijo, P.ID)
 ```
 
 ### Búsqueda e Importancia
