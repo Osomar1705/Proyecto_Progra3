@@ -3,7 +3,7 @@
 ## Integrantes
 * Osmar Vilchez Aguirre
 * Royer Sebastian Ramos Vargas
-* Luciana Mylene Melgagrejo Quispe
+* Luciana Mylene Melgarejo Quispe
 
 ## Descripción del Proyecto
 Este proyecto implementa una plataforma de administración y búsqueda de películas utilizando estructuras de datos avanzadas (Tries) para garantizar una búsqueda rápida y eficiente por palabras, frases o sub-palabras.
