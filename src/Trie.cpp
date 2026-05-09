@@ -1,51 +1,43 @@
 #include "Trie.h"
+#include <algorithm>
 
 Trie::Trie() : root(new TrieNode()) {}
 
 Trie::~Trie() {
     destroy(root);
-    root = nullptr;
 }
 
 void Trie::destroy(TrieNode* node) {
     if (!node) return;
-    for (auto& kv : node->children) {
-        destroy(kv.second);
+    for (auto& pair : node->children) {
+        destroy(pair.second);
     }
     delete node;
 }
 
 void Trie::insert(const std::string& word, int movieId) {
-    if (word.empty()) return;
-
-    // Insertar cada sufijo de la palabra. Asociar movieId a cada nodo del camino
-    // permite que cualquier prefijo de un sufijo (= cualquier substring de word)
-    // recupere la pelicula en O(|substring|).
-    for (size_t start = 0; start < word.size(); ++start) {
-        TrieNode* node = root;
-        for (size_t i = start; i < word.size(); ++i) {
-            char c = word[i];
-            auto it = node->children.find(c);
-            if (it == node->children.end()) {
-                TrieNode* child = new TrieNode();
-                node->children.emplace(c, child);
-                node = child;
-            } else {
-                node = it->second;
-            }
-            node->movieIds.insert(movieId);
+    TrieNode* current = root;
+    for (char c : word) {
+        if (current->children.find(c) == current->children.end()) {
+            current->children[c] = new TrieNode();
+        }
+        current = current->children[c];
+        
+        // Evitar duplicados de IDs en el mismo nodo
+        if (current->movieIds.empty() || current->movieIds.back() != movieId) {
+            current->movieIds.push_back(movieId);
         }
     }
+    current->isEndOfWord = true;
 }
 
-std::vector<int> Trie::search(const std::string& query) const {
-    if (query.empty()) return {};
-
-    TrieNode* node = root;
+std::vector<int> Trie::search(const std::string& query) {
+    TrieNode* current = root;
     for (char c : query) {
-        auto it = node->children.find(c);
-        if (it == node->children.end()) return {};
-        node = it->second;
+        if (current->children.find(c) == current->children.end()) {
+            return {};
+        }
+        current = current->children[c];
     }
-    return std::vector<int>(node->movieIds.begin(), node->movieIds.end());
+    return current->movieIds;
 }

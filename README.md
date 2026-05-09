@@ -1,79 +1,52 @@
-# Plataforma de Streaming — Búsqueda por sub-palabras y frases
-
-Programación III · Proyecto Final (2026-1)
+# Programación III: Proyecto Final - Plataforma de Streaming
 
 ## Integrantes
-- Osmar Vilchez Aguirre
-- Royer Sebastian Ramos Vargas
-- Luciana Mylene Melgarejo Quispe
+* Osmar Vilchez Aguirre
+* Royer Sebastian Ramos Vargas
+* Luciana Mylene Melgarejo Quispe
 
-## Estructura del proyecto
+## Descripción del Proyecto
+Este proyecto implementa una plataforma de administración y búsqueda de películas utilizando estructuras de datos avanzadas (Tries) para garantizar una búsqueda rápida y eficiente por palabras, frases o sub-palabras.
+
+## Estructura de Datos: Trie de Sufijos
+Se ha seleccionado un **Trie (Árbol de Prefijos)** para almacenar el léxico de las películas. Para cumplir con el requisito de búsqueda por **sub-palabras** (substrings), se insertan todos los **sufijos** de cada palabra relevante (título, género, director, etc.) en el Trie.
+
+### Justificación
+* **Eficiencia de Búsqueda:** El Trie permite buscar cualquier prefijo en tiempo O(L), donde L es la longitud de la consulta.
+* **Soporte de Substrings:** Al insertar todos los sufijos, una búsqueda de "arc" encontrará "barco" (ya que "arco" es un sufijo de "barco" y "arc" es un prefijo de "arco").
+* **Espacio:** Aunque consume más memoria que un Trie simple, es manejable para el volumen de datos de Wikipedia Movie Plots y evita la necesidad de escaneos lineales (O(N)).
+
+## Algoritmos Implementados
+
+### Pre-procesamiento
+1. **Tokenización:** El texto se limpia de caracteres no alfanuméricos.
+2. **Normalización:** Todo el texto se convierte a minúsculas.
+3. **Stop-words:** Se filtran palabras comunes (the, and, or, etc.) que no aportan valor semántico a la búsqueda.
+
+### Inserción (Pseudo-código)
+```text
+Para cada Película P en la Base de Datos:
+    Campos = [P.Titulo, P.Director, P.Cast, P.Genero, P.Plot]
+    Para cada Campo en Campos:
+        Palabras = LimpiarYDividir(Campo)
+        Para cada Palabras W:
+            Para i desde 0 hasta longitud(W):
+                Sufijo = W.subcadena(i)
+                Trie.Insertar(Sufijo, P.ID)
 ```
-include/
-  Movie.h        # Struct Movie (id, title, director, cast, genre, plot, clean_words)
-  Processor.h    # Lectura/limpieza del CSV
-  Trie.h         # Trie de Sufijos
-src/
-  Movie.cpp
-  Processor.cpp  # Parser CSV (comillas escapadas y campos multilinea) + tokenizado
-  Trie.cpp       # Insert/search/destroy del Trie de Sufijos
-  main.cpp       # CLI: cargar, indexar y buscar
-wiki_movie_plots_deduped.csv
-```
 
-## Bloque 1 — Pre-procesamiento
-- `Processor::loadMovies` lee el CSV soportando:
-  - Comillas escapadas `""` dentro de campos quoted.
-  - Registros que abarcan varias líneas físicas (los plots de Wikipedia contienen `\n`).
-- `Processor::cleanAndSplitText` baja a minúsculas, descarta puntuación y filtra *stop words* en inglés.
-- Cada `Movie.clean_words` agrega los tokens de **título, director, género y sinopsis**, de modo que la búsqueda funciona contra cualquiera de esos campos.
+### Búsqueda e Importancia
+* Se dividen los términos de búsqueda en tokens.
+* Se consulta el Trie por cada token.
+* **Algoritmo de Importancia:** Cada película recibe un puntaje basado en la cantidad de tokens de búsqueda que contiene. Las películas con mayor puntaje (más coincidencias) aparecen primero.
 
-## Bloque 2 — Estructura de datos elegida: **Trie de Sufijos**
+### Recomendación de Similitud
+* Basado en las películas que el usuario marcó con **Like**.
+* El algoritmo analiza los géneros más frecuentes y palabras clave en los títulos de las películas "Likeadas".
+* Se puntúan las demás películas del catálogo según su coincidencia con estos géneros y palabras clave.
 
-### Por qué un Trie de Sufijos (no un Trie clásico)
-El proyecto exige dos cosas que un Trie *normal* no resuelve bien:
-
-1. **Búsqueda de sub-palabras en cualquier posición**: la consulta `bar` debe encontrar `barco`, `embarcar`, `cobarde`, etc. Un Trie clásico sólo indexa **prefijos** — `bar` encontraría `barco` pero nunca `embarcar`.
-2. **Búsqueda de frases**: dada una consulta de varios términos, todos deben coincidir contra alguna palabra indexada de la película.
-
-La solución es un **Trie de Sufijos**: para cada palabra `W` de longitud *n* se insertan sus *n* sufijos
-(`W[0..]`, `W[1..]`, …, `W[n-1..]`). Cualquier substring de `W` es prefijo de algún sufijo de `W`,
-así que descender por la consulta carácter a carácter llega exactamente a los nodos correctos.
-
-### Cómo funciona en este proyecto
-- **Nodo** (`TrieNode`): un mapa `char → TrieNode*` y un `unordered_set<int>` con los IDs de películas que
-  contienen ese substring. El `unordered_set` evita duplicados cuando varios sufijos de la misma película
-  pasan por el mismo nodo.
-- **Inserción** (`Trie::insert(word, movieId)`): recorre los `n` sufijos. En cada nodo del camino agrega
-  `movieId` al set, de modo que **cualquier prefijo de cualquier sufijo** (= cualquier substring) recupere
-  la película.
-- **Búsqueda** (`Trie::search(query)`): desciende por el Trie siguiendo los caracteres de `query`. Si en
-  algún paso no existe el hijo, no hay coincidencias. Si llega al final, devuelve los IDs del nodo.
-- **Frases** (`searchAll` en `main.cpp`): tokeniza la consulta con la misma limpieza del Bloque 1 y devuelve
-  la **intersección** de los resultados por token — una película coincide solo si contiene **todos** los términos.
-
-### Complejidad
-| Operación | Complejidad |
-|---|---|
-| Insertar una palabra de longitud *n* | O(n²) tiempo, O(n²) nodos en el peor caso |
-| Buscar un substring de longitud *m* | **O(m)** — independiente del tamaño del corpus |
-| Buscar una frase de *k* tokens (longitud total *L*) | O(L + R), con R = tamaño del resultado parcial |
-
-El intercambio es claro: pagamos **memoria** durante la indexación para que la **búsqueda sea proporcional
-solo a la longitud de la consulta**, no al tamaño del dataset (~35 000 películas).
-
-### Alternativas consideradas
-- **Trie de prefijos clásico**: descartado, no resuelve sub-palabras en posiciones interiores.
-- **Suffix Array / FM-Index**: más compactos en memoria, pero la implementación queda fuera del alcance del curso.
-- **Búsqueda lineal con `find`**: O(N · |texto|) por consulta — inviable para un dataset grande.
-
-## Compilar y ejecutar
-```bash
-cmake -S . -B build
-cmake --build build
-./build/streaming_platform
-```
-Menú:
-1. Cargar datos → ruta del CSV (`wiki_movie_plots_deduped.csv`).
-2. Buscar → escribe la consulta (sub-palabra o frase).
-3. Salir.
+## Guía de Uso
+1. **Cargar Datos:** Ingrese la ruta del archivo `wiki_movie_plots_deduped.csv`.
+2. **Buscar:** Ingrese palabras, frases o partes de palabras.
+3. **Detalles:** Seleccione una película para ver su sinopsis completa.
+4. **Interacción:** Use las opciones de 'Like' para recibir recomendaciones y 'Ver más tarde' para organizar su lista.
