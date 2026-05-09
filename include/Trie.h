@@ -20,6 +20,7 @@ public:
 
     void insert(const std::string& word, int movieId);
     std::vector<int> search(const std::string& query);
+    void clear();
 
 private:
     TrieNode* root;

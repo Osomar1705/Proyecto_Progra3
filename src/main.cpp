@@ -19,44 +19,39 @@ void insertWordSuffixes(Trie& trie, const string& word, int movieId) {
     }
 }
 
-void indexMovie(Trie& trie, DataProcessor& processor, const Movie& m) {
+void indexMovie(Trie& trie, const Movie& m) {
     // Usamos las palabras ya limpias que se procesaron al cargar el CSV
     for (const string& word : m.clean_words) {
         insertWordSuffixes(trie, word, m.id);
     }
 }
 
-vector<int> getSimilarMovies(const set<int>& likedMovies, const vector<Movie>& allMovies, unordered_map<int, int>& movieIndexMap, DataProcessor& processor) {
+vector<int> getSimilarMovies(const set<int>& likedMovies, const vector<Movie>& allMovies, unordered_map<int, int>& movieIndexMap) {
     if (likedMovies.empty()) return {};
 
     unordered_map<string, int> genreCount;
     unordered_map<string, int> keywordCount;
 
     for (int mid : likedMovies) {
-        const Movie& m = allMovies[movieIndexMap[mid]];
-        // Usamos cleanAndSplitText para los generos específicamente
-        vector<string> genres = processor.cleanAndSplitText(m.genre);
-        for (const string& g : genres) genreCount[g]++;
-        
-        vector<string> titles = processor.cleanAndSplitText(m.title);
-        for (const string& t : titles) keywordCount[t]++;
+        if (movieIndexMap.count(mid)) {
+            const Movie& m = allMovies[movieIndexMap[mid]];
+            for (const string& g : m.clean_genre) genreCount[g]++;
+            for (const string& t : m.clean_title) keywordCount[t]++;
+        }
     }
 
     unordered_map<int, int> scores;
     for (const auto& m : allMovies) {
-        if (likedMovies.find(m.id) != likedMovies.end()) continue;
+        if (likedMovies.count(m.id)) continue;
 
-        // Score based on genre match
-        vector<string> genres = processor.cleanAndSplitText(m.genre);
-        for (const string& g : genres) {
-            if (genreCount.count(g)) scores[m.id] += genreCount[g] * 2;
+        int score = 0;
+        for (const string& g : m.clean_genre) {
+            if (genreCount.count(g)) score += genreCount[g] * 2;
         }
-
-        // Score based on title keyword match
-        vector<string> titles = processor.cleanAndSplitText(m.title);
-        for (const string& t : titles) {
-            if (keywordCount.count(t)) scores[m.id] += keywordCount[t];
+        for (const string& t : m.clean_title) {
+            if (keywordCount.count(t)) score += keywordCount[t];
         }
+        if (score > 0) scores[m.id] = score;
     }
 
     vector<pair<int, int>> ranked;
@@ -72,14 +67,14 @@ int main() {
     DataProcessor processor;
     Trie trie;
     vector<Movie> movies;
-    unordered_map<int, int> movieIndexMap; // Maps movie ID to index in 'movies' vector
+    unordered_map<int, int> movieIndexMap; 
     set<int> watchLater;
     set<int> likedMovies;
+    vector<int> recommendedCache;
+    size_t lastLikedSize = 0;
 
     while (true) {
-        cout << "\n========================================\n";
-        cout << "   PLATAFORMA DE STREAMING PROGRA III   \n";
-        cout << "========================================\n";
+        cout << "\n=== Sistema de Recomendacion de Peliculas ===\n";
 
         if (!movies.empty()) {
             if (!watchLater.empty()) {
@@ -91,10 +86,15 @@ int main() {
                 if (watchLater.size() > 5) cout << "  ... y " << watchLater.size() - 5 << " mas.\n";
             }
 
-            vector<int> similar = getSimilarMovies(likedMovies, movies, movieIndexMap, processor);
-            if (!similar.empty()) {
+            // Recalcular recomendaciones solo si han cambiado los likes
+            if (likedMovies.size() != lastLikedSize) {
+                recommendedCache = getSimilarMovies(likedMovies, movies, movieIndexMap);
+                lastLikedSize = likedMovies.size();
+            }
+
+            if (!recommendedCache.empty()) {
                 cout << "\n--- Recomendadas para ti ---\n";
-                for (int id : similar) {
+                for (int id : recommendedCache) {
                     cout << "  * " << movies[movieIndexMap[id]].title << " (" << movies[movieIndexMap[id]].genre << ")\n";
                 }
             }
@@ -122,17 +122,26 @@ int main() {
                 getline(cin, path);
                 
                 cout << "Cargando y procesando datos... esto puede tomar un momento.\n";
-                movies = processor.loadMovies(path);
+                vector<Movie> loadedMovies = processor.loadMovies(path);
                 
-                if (movies.empty()) {
+                if (loadedMovies.empty()) {
                     cout << "Error: No se pudieron cargar las peliculas. Verifica la ruta.\n";
                 } else {
+                    // Limpiar datos anteriores
+                    movies = move(loadedMovies);
+                    movieIndexMap.clear();
+                    trie.clear();
+                    watchLater.clear();
+                    likedMovies.clear();
+                    recommendedCache.clear();
+                    lastLikedSize = 0;
+
                     cout << "Exito! Se cargaron " << movies.size() << " peliculas.\n";
                     cout << "Indexando peliculas en el Árbol (Trie de sufijos)... ";
                     for (size_t i = 0; i < movies.size(); ++i) {
                         movieIndexMap[movies[i].id] = i;
-                        indexMovie(trie, processor, movies[i]);
-                        if (i % 5000 == 0 && i > 0) cout << i << "... ";
+                        indexMovie(trie, movies[i]);
+                        if (i > 0 && i % 5000 == 0) cout << i << "... ";
                     }
                     cout << "Completado!\n";
                 }
@@ -143,11 +152,11 @@ int main() {
                     cout << "Por favor, carga los datos primero (Opcion 1).\n";
                     break;
                 }
-                
+
                 cout << "Termino de busqueda (palabra, frase o sub-palabra): ";
                 string query;
                 getline(cin, query);
-                
+
                 vector<string> query_tokens = processor.cleanAndSplitText(query);
                 if (query_tokens.empty() && !query.empty()) {
                     string raw_query = query;
@@ -170,16 +179,23 @@ int main() {
 
                 vector<pair<int, int>> rankedResults;
                 for (auto const& [id, score] : scores) {
-                    rankedResults.push_back({score, id});
+                    rankedResults.emplace_back(score, id);
                 }
                 sort(rankedResults.rbegin(), rankedResults.rend());
 
+                if (rankedResults.empty()) {
+                    cout << "No se encontraron coincidencias.\n";
+                    break;
+                }
+
                 int current_start = 0;
-                while (current_start < static_cast<int>(rankedResults.size())) {
-                    cout << "\n--- Resultados " << current_start + 1 << " - " << min((int)rankedResults.size(), current_start + 5) << " de " << rankedResults.size() << " ---\n";
-                    for (int i = current_start; i < min((int)rankedResults.size(), current_start + 5); ++i) {
+                const int pageSize = 5;
+                while (current_start < (int)rankedResults.size()) {
+                    int end = min(current_start + pageSize, (int)rankedResults.size());
+                    cout << "\n--- Resultados " << current_start + 1 << " - " << end << " de " << rankedResults.size() << " ---\n";
+                    for (int i = current_start; i < end; ++i) {
                         int mid = rankedResults[i].second;
-                        cout << i + 1 << ". " << movies[movieIndexMap[mid]].title << " [" << movies[movieIndexMap[mid]].genre << "]\n";
+                        cout << (i - current_start + 1) << ". " << movies[movieIndexMap[mid]].title << " [" << movies[movieIndexMap[mid]].genre << "]\n";
                     }
 
                     cout << "\nSeleccione un numero para ver detalles, 'n' para mas resultados, o 'q' para volver: ";
@@ -188,48 +204,49 @@ int main() {
 
                     if (choice == "q") break;
                     if (choice == "n") {
-                        current_start += 5;
+                        current_start += pageSize;
                         continue;
                     }
 
                     try {
-                        int idx = stoi(choice) - 1;
-                        if (idx >= 0 && idx < static_cast<int>(rankedResults.size())) {
-                            int mid = rankedResults[idx].second;
+                        int localIndex = stoi(choice);
+                        if (localIndex >= 1 && localIndex <= end - current_start) {
+                            int resultIndex = current_start + localIndex - 1;
+                            int mid = rankedResults[resultIndex].second;
                             Movie& m = movies[movieIndexMap[mid]];
-                            cout << "\n----------------------------------------\n";
+                            cout << "\n///////////////////////////////////\n";
                             cout << "TITULO:   " << m.title << "\n";
                             cout << "DIRECTOR: " << m.director << "\n";
                             cout << "GENERO:   " << m.genre << "\n";
                             cout << "REPARTO:  " << m.cast << "\n";
                             cout << "SINOPSIS: " << m.plot.substr(0, 800) << (m.plot.length() > 800 ? "..." : "") << "\n";
-                            cout << "----------------------------------------\n";
-                            
+                            cout << "\n///////////////////////////////////\n";
+
                             cout << "\n1. Like  2. Ver mas tarde  3. Volver\nOpcion: ";
-                            int sub_opt;
-                            cin >> sub_opt;
-                            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-                            if (sub_opt == 1) {
+                            string sub_choice;
+                            getline(cin, sub_choice);
+                            if (sub_choice == "1") {
                                 likedMovies.insert(mid);
                                 cout << "Agregado a tus Likes!\n";
-                            } else if (sub_opt == 2) {
+                            } else if (sub_choice == "2") {
                                 watchLater.insert(mid);
                                 cout << "Agregado a Ver mas tarde!\n";
                             }
+                        } else {
+                            cout << "Indice fuera de rango.\n";
                         }
                     } catch (...) {
                         cout << "Opcion invalida.\n";
                     }
-                    break;
                 }
-                if (rankedResults.empty()) cout << "No se encontraron coincidencias.\n";
                 break;
             }
             case 3:
                 cout << "\n--- Lista completa: Ver Mas Tarde ---\n";
                 if (watchLater.empty()) cout << "(Vacia)\n";
                 for (int id : watchLater) {
-                    cout << "- " << movies[movieIndexMap[id]].title << "\n";
+                    if (movieIndexMap.count(id))
+                        cout << "- " << movies[movieIndexMap[id]].title << "\n";
                 }
                 break;
             case 4:

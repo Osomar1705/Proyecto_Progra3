@@ -41,3 +41,12 @@ std::vector<int> Trie::search(const std::string& query) {
     }
     return current->movieIds;
 }
+
+void Trie::clear() {
+    for (auto& pair : root->children) {
+        destroy(pair.second);
+    }
+    root->children.clear();
+    root->movieIds.clear();
+    root->isEndOfWord = false;
+}

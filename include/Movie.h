@@ -13,6 +13,8 @@ struct Movie {
     string genre;
     string plot;
     vector<string> clean_words;
+    vector<string> clean_title;
+    vector<string> clean_genre;
 };
 
 #endif  
