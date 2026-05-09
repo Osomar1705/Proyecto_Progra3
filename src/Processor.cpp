@@ -52,7 +52,7 @@ vector<string> Processor::cleanAndSplitText(const string& text) {
     string current_word = "";
     
     for (char c : text) {
-        if (isalnum(c)) {
+        if (isalnum(static_cast<unsigned char>(c))) {
             current_word += static_cast<char>(tolower(static_cast<unsigned char>(c)));
         } else {
             if (!current_word.empty()) {
