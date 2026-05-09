@@ -153,7 +153,7 @@ int main() {
                 vector<string> query_tokens = processor.cleanAndSplitText(query);
                 if (query_tokens.empty() && !query.empty()) {
                     string raw_query = query;
-                    for (char &c : raw_query) c = tolower(c);
+                    for (char &c : raw_query) c = static_cast<char>(tolower(static_cast<unsigned char>(c)));
                     query_tokens.push_back(raw_query);
                 }
 
@@ -177,7 +177,7 @@ int main() {
                 sort(rankedResults.rbegin(), rankedResults.rend());
 
                 int current_start = 0;
-                while (current_start < rankedResults.size()) {
+                while (current_start < static_cast<int>(rankedResults.size())) {
                     cout << "\n--- Resultados " << current_start + 1 << " - " << min((int)rankedResults.size(), current_start + 5) << " de " << rankedResults.size() << " ---\n";
                     for (int i = current_start; i < min((int)rankedResults.size(), current_start + 5); ++i) {
                         int mid = rankedResults[i].second;
@@ -196,7 +196,7 @@ int main() {
 
                     try {
                         int idx = stoi(choice) - 1;
-                        if (idx >= 0 && idx < rankedResults.size()) {
+                        if (idx >= 0 && idx < static_cast<int>(rankedResults.size())) {
                             int mid = rankedResults[idx].second;
                             Movie& m = movies[movieIndexMap[mid]];
                             cout << "\n----------------------------------------\n";
