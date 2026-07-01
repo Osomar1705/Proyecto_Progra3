@@ -1,20 +1,19 @@
 #ifndef MOVIE_H
 #define MOVIE_H
-#pragma once
+
 #include <string>
-using namespace std;
 #include <vector>
 
 struct Movie {
-    int id;
-    string title;
-    string director;
-    string cast;
-    string genre;
-    string plot;
-    vector<string> clean_words;
-    vector<string> clean_title;
-    vector<string> clean_genre;
+    int id = 0; // default 0: distingue registros inválidos/sin llenar (evita UB al filtrar)
+    std::string title;
+    std::string director;
+    std::string cast;
+    std::string genre;
+    std::string plot;
+    std::vector<std::string> clean_words;
+    std::vector<std::string> clean_title;
+    std::vector<std::string> clean_genre;
 };
 
-#endif  
+#endif // MOVIE_H

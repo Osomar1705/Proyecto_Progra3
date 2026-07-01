@@ -9,7 +9,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
-set(CMAKE_CXX_FLAGS_RELEASE "-O2")
+# MSVC uses /O2; GCC/Clang use -O2
+if(MSVC)
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2")
+else()
+    set(CMAKE_CXX_FLAGS_RELEASE "-O2")
+endif()
 
 # Carpeta de cabeceras
 include_directories(${CMAKE_SOURCE_DIR}/include)

@@ -19,6 +19,11 @@ int InvertedIndex::addOccurrence(const std::string& term, int movieId) {
     return termId;
 }
 
+int InvertedIndex::findTerm(const std::string& term) const {
+    auto it = termToId_.find(term);
+    return it == termToId_.end() ? -1 : it->second;
+}
+
 void InvertedIndex::clear() {
     termToId_.clear();
     vocabulary_.clear();
