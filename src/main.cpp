@@ -3,27 +3,50 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include <set>
 #include <algorithm>
+#include <chrono>
 
 #include "Movie.h"
 #include "DataProcessor.h"
+#include "InvertedIndex.h"
 #include "Trie.h"
 
 using namespace std;
 
-// Función para insertar todos los sufijos de una palabra en el Trie
-void insertWordSuffixes(Trie& trie, const string& word, int movieId) {
+// Insert every suffix of `word` into the suffix index, tagging each terminal with termId.
+void insertTermSuffixes(Trie& suffixIndex, const string& word, int termId) {
     for (size_t i = 0; i < word.length(); ++i) {
-        trie.insert(word.substr(i), movieId);
+        suffixIndex.insert(word.substr(i), termId);
     }
 }
 
-void indexMovie(Trie& trie, const Movie& m) {
-    // Usamos las palabras ya limpias que se procesaron al cargar el CSV
-    for (const string& word : m.clean_words) {
-        insertWordSuffixes(trie, word, m.id);
+// Build the two indexes from the loaded movies:
+//   1) inverted index  -> unique vocabulary + posting lists (termId -> movie ids)
+//   2) suffix index    -> suffixes of each UNIQUE term, so substrings map to termIds
+void buildIndexes(const vector<Movie>& movies, InvertedIndex& invIndex, Trie& suffixIndex) {
+    // Phase 1: collapse every word occurrence into unique terms with posting lists.
+    for (const Movie& m : movies) {
+        for (const string& word : m.clean_words) {
+            invIndex.addOccurrence(word, m.id);
+        }
     }
+    // Phase 2: index suffixes over the reduced vocabulary only (not per occurrence).
+    for (int termId = 0; termId < invIndex.termCount(); ++termId) {
+        insertTermSuffixes(suffixIndex, invIndex.term(termId), termId);
+    }
+}
+
+// Resolve a query token to the set of movie ids that contain it as a substring:
+// gather the matching terms via the suffix index, then union their posting lists.
+unordered_set<int> matchToken(const string& token, const InvertedIndex& invIndex, const Trie& suffixIndex) {
+    unordered_set<int> matched;
+    for (int termId : suffixIndex.collect(token)) {
+        const vector<int>& plist = invIndex.postings(termId);
+        matched.insert(plist.begin(), plist.end());
+    }
+    return matched;
 }
 
 vector<int> getSimilarMovies(const set<int>& likedMovies, const vector<Movie>& allMovies, unordered_map<int, int>& movieIndexMap) {
@@ -65,7 +88,8 @@ vector<int> getSimilarMovies(const set<int>& likedMovies, const vector<Movie>& a
 
 int main() {
     DataProcessor processor;
-    Trie trie;
+    InvertedIndex invIndex;
+    Trie suffixIndex;
     vector<Movie> movies;
     unordered_map<int, int> movieIndexMap; 
     set<int> watchLater;
@@ -130,20 +154,25 @@ int main() {
                     // Limpiar datos anteriores
                     movies = move(loadedMovies);
                     movieIndexMap.clear();
-                    trie.clear();
+                    invIndex.clear();
+                    suffixIndex.clear();
                     watchLater.clear();
                     likedMovies.clear();
                     recommendedCache.clear();
                     lastLikedSize = 0;
 
-                    cout << "Exito! Se cargaron " << movies.size() << " peliculas.\n";
-                    cout << "Indexando peliculas en el Árbol (Trie de sufijos)... ";
                     for (size_t i = 0; i < movies.size(); ++i) {
                         movieIndexMap[movies[i].id] = i;
-                        indexMovie(trie, movies[i]);
-                        if (i > 0 && i % 5000 == 0) cout << i << "... ";
                     }
-                    cout << "Completado!\n";
+
+                    cout << "Exito! Se cargaron " << movies.size() << " peliculas.\n";
+                    cout << "Indexando (indice invertido + indice de sufijos)... ";
+                    auto t0 = chrono::steady_clock::now();
+                    buildIndexes(movies, invIndex, suffixIndex);
+                    auto t1 = chrono::steady_clock::now();
+                    auto ms = chrono::duration_cast<chrono::milliseconds>(t1 - t0).count();
+                    cout << "Completado en " << ms << " ms ("
+                         << invIndex.termCount() << " terminos unicos).\n";
                 }
                 break;
             }
@@ -171,8 +200,10 @@ int main() {
 
                 unordered_map<int, int> scores;
                 for (const auto& token : query_tokens) {
-                    vector<int> results = trie.search(token);
-                    for (int id : results) {
+                    // Each movie scores at most +1 per token (matched is a set), so the
+                    // final score is the number of distinct query tokens it matches.
+                    unordered_set<int> matched = matchToken(token, invIndex, suffixIndex);
+                    for (int id : matched) {
                         scores[id]++;
                     }
                 }

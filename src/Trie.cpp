@@ -15,31 +15,43 @@ void Trie::destroy(TrieNode* node) {
     delete node;
 }
 
-void Trie::insert(const std::string& word, int movieId) {
+void Trie::insert(const std::string& word, int termId) {
     TrieNode* current = root;
     for (char c : word) {
-        if (current->children.find(c) == current->children.end()) {
-            current->children[c] = new TrieNode();
-        }
-        current = current->children[c];
-        
-        // Evitar duplicados de IDs en el mismo nodo
-        if (std::find(current->movieIds.begin(), current->movieIds.end(), movieId) == current->movieIds.end()) {
-            current->movieIds.push_back(movieId);
-        }
+        TrieNode*& next = current->children[c];
+        if (!next) next = new TrieNode();
+        current = next;
     }
-    current->isEndOfWord = true;
+    // Payload lives only at the terminal node. Suffixes of a single word are all
+    // distinct, so the only possible repeat is the same termId inserted twice.
+    if (current->termIds.empty() || current->termIds.back() != termId) {
+        current->termIds.push_back(termId);
+    }
 }
 
-std::vector<int> Trie::search(const std::string& query) {
-    TrieNode* current = root;
+void Trie::gather(const TrieNode* node, std::vector<int>& out) {
+    if (!node) return;
+    out.insert(out.end(), node->termIds.begin(), node->termIds.end());
+    for (const auto& pair : node->children) {
+        gather(pair.second, out);
+    }
+}
+
+std::vector<int> Trie::collect(const std::string& query) const {
+    const TrieNode* current = root;
     for (char c : query) {
-        if (current->children.find(c) == current->children.end()) {
+        auto it = current->children.find(c);
+        if (it == current->children.end()) {
             return {};
         }
-        current = current->children[c];
+        current = it->second;
     }
-    return current->movieIds;
+
+    std::vector<int> result;
+    gather(current, result);
+    std::sort(result.begin(), result.end());
+    result.erase(std::unique(result.begin(), result.end()), result.end());
+    return result;
 }
 
 void Trie::clear() {
@@ -47,6 +59,5 @@ void Trie::clear() {
         destroy(pair.second);
     }
     root->children.clear();
-    root->movieIds.clear();
-    root->isEndOfWord = false;
+    root->termIds.clear();
 }

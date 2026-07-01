@@ -112,6 +112,11 @@ vector<Movie> DataProcessor::loadMovies(const string& filename) {
             // Combinamos los campos relevantes para el procesamiento
             string text_to_clean = m.title + " " + m.director + " " + m.genre + " " + m.plot;
             m.clean_words = cleanAndSplitText(text_to_clean);
+
+            // Listas por campo usadas por el motor de recomendaciones (similitud por
+            // género y título). Antes quedaban vacías y las recomendaciones no puntuaban.
+            m.clean_title = cleanAndSplitText(m.title);
+            m.clean_genre = cleanAndSplitText(m.genre);
             
             movies.push_back(m);
         }
