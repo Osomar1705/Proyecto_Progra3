@@ -140,3 +140,12 @@ Se ha utilizado programación paralela (con la librería de C++) para optimizar 
 | Carga Paralela | ~1274 ms |
 
 Como se observa, la carga paralela reduce significativamente el tiempo necesario para leer y procesar los registros de películas antes de insertarlos en el Trie de Sufijos.
+
+---
+
+## 8. Referencias (Formato APA)
+
+* cplusplus.com. (s.f.). *C++ Reference*. Recuperado de https://cplusplus.com/reference/
+* GeeksforGeeks. (2023). *Trie Data Structure*. Recuperado de https://www.geeksforgeeks.org/trie-insert-and-search/
+* Gamma, E., Helm, R., Johnson, R., & Vlissides, J. (1994). *Design Patterns: Elements of Reusable Object-Oriented Software*. Addison-Wesley.
+* Kaggle (Proporcionado vía Drive). (2021). *Wikipedia Movie Plots*. Dataset utilizado para la base de datos de películas.
