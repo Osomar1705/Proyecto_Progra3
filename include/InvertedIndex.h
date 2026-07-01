@@ -17,6 +17,9 @@ public:
 
     int termCount() const { return static_cast<int>(vocabulary_.size()); }
 
+    // Returns the id of an exact term, or -1 if the term is not in the vocabulary.
+    int findTerm(const std::string& term) const;
+
     const std::string& term(int termId) const { return vocabulary_[termId]; }
     const std::vector<int>& postings(int termId) const { return postings_[termId]; }
 
