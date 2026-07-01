@@ -13,25 +13,26 @@
 
 class IRecommendationStrategy {
 public:
-    virtual std::vector<int> recommend(const std::set<int>& likedMovies, 
-                                       const std::vector<Movie>& allMovies, 
-                                       std::unordered_map<int, int>& movieIndexMap) = 0;
+    virtual std::vector<int> recommend(const std::set<int>& likedMovies,
+                                       const std::vector<Movie>& allMovies,
+                                       const std::unordered_map<int, int>& movieIndexMap) = 0;
     virtual ~IRecommendationStrategy() = default;
 };
 
 class GenreKeywordRecommendation : public IRecommendationStrategy {
 public:
-    std::vector<int> recommend(const std::set<int>& likedMovies, 
-                               const std::vector<Movie>& allMovies, 
-                               std::unordered_map<int, int>& movieIndexMap) override {
+    std::vector<int> recommend(const std::set<int>& likedMovies,
+                               const std::vector<Movie>& allMovies,
+                               const std::unordered_map<int, int>& movieIndexMap) override {
         if (likedMovies.empty()) return {};
 
         std::unordered_map<std::string, int> genreCount;
         std::unordered_map<std::string, int> keywordCount;
 
         for (int mid : likedMovies) {
-            if (movieIndexMap.count(mid)) {
-                const Movie& m = allMovies[movieIndexMap[mid]];
+            auto it = movieIndexMap.find(mid);
+            if (it != movieIndexMap.end()) {
+                const Movie& m = allMovies[it->second];
                 for (const std::string& g : m.clean_genre) genreCount[g]++;
                 for (const std::string& t : m.clean_title) keywordCount[t]++;
             }
@@ -43,10 +44,12 @@ public:
 
             int score = 0;
             for (const std::string& g : m.clean_genre) {
-                if (genreCount.count(g)) score += genreCount[g] * 2;
+                auto g_it = genreCount.find(g);
+                if (g_it != genreCount.end()) score += g_it->second * 2;
             }
             for (const std::string& t : m.clean_title) {
-                if (keywordCount.count(t)) score += keywordCount[t];
+                auto k_it = keywordCount.find(t);
+                if (k_it != keywordCount.end()) score += k_it->second;
             }
             if (score > 0) scores[m.id] = score;
         }
