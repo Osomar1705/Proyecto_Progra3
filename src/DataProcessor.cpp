@@ -85,43 +85,67 @@ vector<Movie> DataProcessor::loadMovies(const string& filename) {
     vector<Movie> movies;
     ifstream file(filename);
     string line;
-    
+
     if (!file.is_open()) {
         cerr << "Error: No se pudo abrir el archivo " << filename << endl;
         return movies;
     }
-    
-    getline(file, line); // Cabecera
-    
-    int current_id = 1;
-    while (getline(file, line)) {
-        if (line.empty()) continue;
-        vector<string> columns = parseCSVLine(line);
-        
-        // El CSV tiene 8 columnas (Release Year, Title, Origin/Ethnicity, Director, Cast, Genre, Wiki Page, Plot)
-        if (columns.size() >= 8) {
-            Movie m;
-            m.id = current_id++;
-            m.title = columns[1];
-            m.director = columns[3];
-            m.cast = columns[4];
-            m.genre = columns[5];
-            m.plot = columns[7];
-            
-            // "Preparar las palabras para que estén listas para ser ingresadas a la estructura"
-            // Combinamos los campos relevantes para el procesamiento
-            string text_to_clean = m.title + " " + m.director + " " + m.genre + " " + m.plot;
-            m.clean_words = cleanAndSplitText(text_to_clean);
 
-            // Listas por campo usadas por el motor de recomendaciones (similitud por
-            // género y título). Antes quedaban vacías y las recomendaciones no puntuaban.
-            m.clean_title = cleanAndSplitText(m.title);
-            m.clean_genre = cleanAndSplitText(m.genre);
-            
-            movies.push_back(m);
+    getline(file, line); // Cabecera
+
+    int current_id = 1;
+
+    // Turn a parsed record into a Movie and append it if it has enough columns.
+    // El CSV tiene 8 columnas (Release Year, Title, Origin/Ethnicity, Director, Cast, Genre, Wiki Page, Plot)
+    auto emitMovie = [&](const string& record) {
+        vector<string> columns = parseCSVLine(record);
+        if (columns.size() < 8) return;
+
+        Movie m;
+        m.id = current_id++;
+        m.title = columns[1];
+        m.director = columns[3];
+        m.cast = columns[4];
+        m.genre = columns[5];
+        m.plot = columns[7];
+
+        // "Preparar las palabras para que estén listas para ser ingresadas a la estructura"
+        // Combinamos los campos relevantes para el procesamiento
+        string text_to_clean = m.title + " " + m.director + " " + m.genre + " " + m.plot;
+        m.clean_words = cleanAndSplitText(text_to_clean);
+
+        // Listas por campo usadas por el motor de recomendaciones (similitud por
+        // género y título). Antes quedaban vacías y las recomendaciones no puntuaban.
+        m.clean_title = cleanAndSplitText(m.title);
+        m.clean_genre = cleanAndSplitText(m.genre);
+
+        movies.push_back(m);
+    };
+
+    // Un registro CSV puede abarcar varias líneas físicas cuando un campo entrecomillado
+    // (la sinopsis) contiene saltos de línea. Acumulamos líneas hasta que las comillas
+    // queden balanceadas: recién ahí el registro está completo.
+    string record;
+    bool inQuotedField = false;
+    while (getline(file, line)) {
+        if (record.empty()) {
+            record = line;
+        } else {
+            record += '\n'; // el salto de línea es parte del contenido del campo
+            record += line;
         }
+
+        for (char c : line) {
+            if (c == '"') inQuotedField = !inQuotedField;
+        }
+        if (inQuotedField) continue; // comilla sin cerrar -> el campo sigue en la próxima línea
+
+        if (!record.empty()) emitMovie(record);
+        record.clear();
     }
-    
+    // Registro final si el archivo termina con una comilla sin cerrar (dato malformado).
+    if (!record.empty()) emitMovie(record);
+
     file.close();
     return movies;
 }
