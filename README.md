@@ -3,7 +3,6 @@
 ## Integrantes
 - Osmar Vilchez Aguirre
 - Royer Sebastian Ramos Vargas
-- Luciana Mylene Melgarejo Quispe
 
 ## Descripción del Proyecto
 Este proyecto es una plataforma de búsqueda y administración de películas basada en un conjunto de datos real (`wiki_movie_plots_deduped.csv`).
