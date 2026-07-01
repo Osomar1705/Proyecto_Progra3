@@ -81,15 +81,14 @@ vector<string> DataProcessor::cleanAndSplitText(const string& text) {
     return words;
 }
 
-vector<Movie> DataProcessor::loadMovies(const string& filename) {
+#include "Utils.h"
+
+vector<Movie> DataProcessor::loadMoviesSequential(const string& filename) {
     vector<Movie> movies;
     ifstream file(filename);
     string line;
     
-    if (!file.is_open()) {
-        cerr << "Error: No se pudo abrir el archivo " << filename << endl;
-        return movies;
-    }
+    if (!file.is_open()) return movies;
     
     getline(file, line); // Cabecera
     
@@ -97,8 +96,6 @@ vector<Movie> DataProcessor::loadMovies(const string& filename) {
     while (getline(file, line)) {
         if (line.empty()) continue;
         vector<string> columns = parseCSVLine(line);
-        
-        // El CSV tiene 8 columnas (Release Year, Title, Origin/Ethnicity, Director, Cast, Genre, Wiki Page, Plot)
         if (columns.size() >= 8) {
             Movie m;
             m.id = current_id++;
@@ -107,21 +104,52 @@ vector<Movie> DataProcessor::loadMovies(const string& filename) {
             m.cast = columns[4];
             m.genre = columns[5];
             m.plot = columns[7];
-            
-            // "Preparar las palabras para que estén listas para ser ingresadas a la estructura"
-            // Combinamos los campos relevantes para el procesamiento
             string text_to_clean = m.title + " " + m.director + " " + m.genre + " " + m.plot;
             m.clean_words = cleanAndSplitText(text_to_clean);
-
-            // Listas por campo usadas por el motor de recomendaciones (similitud por
-            // género y título). Antes quedaban vacías y las recomendaciones no puntuaban.
             m.clean_title = cleanAndSplitText(m.title);
             m.clean_genre = cleanAndSplitText(m.genre);
-            
             movies.push_back(m);
         }
     }
-    
     file.close();
     return movies;
+}
+
+vector<Movie> DataProcessor::loadMovies(const string& filename) {
+    ifstream file(filename);
+    string line;
+    if (!file.is_open()) return {};
+    getline(file, line); // Cabecera
+    
+    vector<string> lines;
+    while(getline(file, line)) {
+        if(!line.empty()) lines.push_back(line);
+    }
+    file.close();
+
+    vector<Movie> movies;
+    parallel_map(lines, movies, [this](const string& l, int index) -> Movie {
+        vector<string> columns = parseCSVLine(l);
+        Movie m;
+        if (columns.size() >= 8) {
+            m.id = index + 1;
+            m.title = columns[1];
+            m.director = columns[3];
+            m.cast = columns[4];
+            m.genre = columns[5];
+            m.plot = columns[7];
+            string text_to_clean = m.title + " " + m.director + " " + m.genre + " " + m.plot;
+            m.clean_words = cleanAndSplitText(text_to_clean);
+            m.clean_title = cleanAndSplitText(m.title);
+            m.clean_genre = cleanAndSplitText(m.genre);
+        }
+        return m;
+    });
+
+    // Filtrar aquellas lineas invalidas (si las hay)
+    vector<Movie> valid_movies;
+    for(auto& m : movies) {
+        if(m.id != 0) valid_movies.push_back(std::move(m));
+    }
+    return valid_movies;
 }

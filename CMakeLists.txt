@@ -20,3 +20,6 @@ file(GLOB SOURCES "${CMAKE_SOURCE_DIR}/src/*.cpp")
 add_executable(streaming_platform ${SOURCES})
 
 target_include_directories(streaming_platform PRIVATE ${CMAKE_SOURCE_DIR}/include)
+
+find_package(Threads REQUIRED)
+target_link_libraries(streaming_platform Threads::Threads)

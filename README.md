@@ -128,3 +128,16 @@ g++ -std=c++17 -Iinclude src/DataProcessor.cpp src/Trie.cpp src/main.cpp -o stre
 - El proyecto está listo como una interfaz de consola funcional.
 - Cumple con la evaluación de pre-procesamiento, estructura de datos, pseudocódigo, algoritmo e interfaz.
 - Para una versión futura se puede mejorar con una interfaz gráfica o búsqueda más avanzada.
+
+---
+
+## 7. Rendimiento y Programación Paralela
+
+Se ha utilizado programación paralela (con la librería de C++) para optimizar la carga y pre-procesamiento de los datos del archivo CSV. A continuación, se presenta una tabla comparativa de los tiempos de carga:
+
+| Tipo de Carga | Tiempo promedio (ms) |
+|---|---|
+| Carga Secuencial | ~7172 ms |
+| Carga Paralela | ~1274 ms |
+
+Como se observa, la carga paralela reduce significativamente el tiempo necesario para leer y procesar los registros de películas antes de insertarlos en el Trie de Sufijos.
