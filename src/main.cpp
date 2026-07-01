@@ -1,6 +1,8 @@
 #include <iostream>
+#include <fstream>
 #include <functional>
 #include <limits>
+#include <sstream>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -60,9 +62,36 @@ string toLowerCopy(const string& s) {
 }
 
 // ---------------------------------------------------------
-// PATRON DE DISENO: FACADE Y OBSERVER
+// PATRON DE DISENO: OBSERVER (observador concreto)
 // ---------------------------------------------------------
-class StreamingPlatform : public ILikeObserver {
+// Observa el conjunto de likes: cada notificación recalcula la caché de
+// recomendaciones aplicando la Strategy configurada.
+class RecommendationEngine : public ILikeObserver {
+public:
+    RecommendationEngine(const set<int>& likedMovies,
+                         const vector<Movie>& movies,
+                         const unordered_map<int, int>& movieIndexMap)
+        : likedMovies_(likedMovies), movies_(movies), movieIndexMap_(movieIndexMap),
+          strategy_(make_unique<GenreKeywordRecommendation>()) {}
+
+    void onLikedMoviesChanged() override {
+        recommendations_ = strategy_->recommend(likedMovies_, movies_, movieIndexMap_);
+    }
+
+    const vector<int>& recommendations() const { return recommendations_; }
+
+private:
+    const set<int>& likedMovies_;
+    const vector<Movie>& movies_;
+    const unordered_map<int, int>& movieIndexMap_;
+    unique_ptr<IRecommendationStrategy> strategy_;
+    vector<int> recommendations_;
+};
+
+// ---------------------------------------------------------
+// PATRON DE DISENO: FACADE (usa Singleton, Strategy y Observer)
+// ---------------------------------------------------------
+class StreamingPlatform {
 private:
     InvertedIndex invIndex;
     Trie suffixIndex;
@@ -70,29 +99,72 @@ private:
     unordered_map<int, int> movieIndexMap;
     set<int> watchLater;
     set<int> likedMovies;
-    vector<int> recommendedCache;
+    string csvPath;
 
-    unique_ptr<IRecommendationStrategy> recommender;
+    LikeSubject likeSubject;        // Subject: notifica cambios de likes
+    RecommendationEngine recEngine; // Observer: recalcula recomendaciones
+
+    static constexpr const char* STATE_FILE = "platform_state.txt";
 
 public:
-    StreamingPlatform() {
-        recommender = make_unique<GenreKeywordRecommendation>();
+    StreamingPlatform() : recEngine(likedMovies, movies, movieIndexMap) {
+        likeSubject.attach(&recEngine);
     }
 
-    void onLikedMoviesChanged() override {
-        recommendedCache = recommender->recommend(likedMovies, movies, movieIndexMap);
+    // ----- Persistencia de la sesion (likes + ver mas tarde) -----
+
+    void saveState() const {
+        ofstream out(STATE_FILE);
+        if (!out.is_open()) return;
+        out << "csv=" << csvPath << "\n";
+        out << "liked=" << joinIds(likedMovies) << "\n";
+        out << "watchlater=" << joinIds(watchLater) << "\n";
+    }
+
+    // Al iniciar: si hay una sesion guardada, recarga el CSV y restaura
+    // likes / ver-mas-tarde (requisito: mostrar "Ver mas tarde" al iniciar).
+    void restoreSession() {
+        ifstream in(STATE_FILE);
+        if (!in.is_open()) return;
+
+        string savedCsv, line;
+        vector<int> likedIds, laterIds;
+        while (getline(in, line)) {
+            if (line.rfind("csv=", 0) == 0) savedCsv = line.substr(4);
+            else if (line.rfind("liked=", 0) == 0) likedIds = parseIdList(line.substr(6));
+            else if (line.rfind("watchlater=", 0) == 0) laterIds = parseIdList(line.substr(11));
+        }
+        if (savedCsv.empty()) return;
+
+        cout << "Restaurando sesion anterior (" << savedCsv << ")...\n";
+        loadData(savedCsv);
+        if (movies.empty()) return;
+
+        for (int id : likedIds) {
+            if (movieIndexMap.count(id)) likedMovies.insert(id);
+        }
+        for (int id : laterIds) {
+            if (movieIndexMap.count(id)) watchLater.insert(id);
+        }
+        likeSubject.notifyLikedMoviesChanged();
     }
 
     void loadData(const string& path) {
         DataProcessor& processor = DataProcessor::getInstance(); // Singleton
 
+        // Comparación de tiempos: secuencial vs paralelo (tabla de la rúbrica).
         cout << "Cargando datos secuencialmente para comparar tiempos...\n";
-        auto t0_seq = chrono::steady_clock::now();
-        vector<Movie> seqMovies = processor.loadMoviesSequential(path);
-        auto t1_seq = chrono::steady_clock::now();
-        auto ms_seq = chrono::duration_cast<chrono::milliseconds>(t1_seq - t0_seq).count();
+        long long ms_seq = 0;
+        size_t seqCount = 0;
+        {
+            auto t0_seq = chrono::steady_clock::now();
+            vector<Movie> seqMovies = processor.loadMoviesSequential(path);
+            auto t1_seq = chrono::steady_clock::now();
+            ms_seq = chrono::duration_cast<chrono::milliseconds>(t1_seq - t0_seq).count();
+            seqCount = seqMovies.size();
+        } // seqMovies se libera aqui: la carga paralela no duplica el pico de memoria
 
-        cout << "Cargando y procesando datos paralelamente (Programacion Paralela)...\n";
+        cout << "Cargando y procesando datos en paralelo (Programacion Paralela)...\n";
         auto t0_par = chrono::steady_clock::now();
         vector<Movie> loadedMovies = processor.loadMovies(path);
         auto t1_par = chrono::steady_clock::now();
@@ -104,20 +176,21 @@ public:
         }
 
         cout << "Tiempos de carga:\n";
-        cout << "- Secuencial: " << ms_seq << " ms\n";
-        cout << "- Paralelo: " << ms_par << " ms\n";
+        cout << "- Secuencial: " << ms_seq << " ms (" << seqCount << " peliculas)\n";
+        cout << "- Paralelo:   " << ms_par << " ms (" << loadedMovies.size() << " peliculas)\n";
 
         movies = move(loadedMovies);
+        csvPath = path;
         movieIndexMap.clear();
         invIndex.clear();
         suffixIndex.clear();
         watchLater.clear();
         likedMovies.clear();
-        recommendedCache.clear();
 
         for (size_t i = 0; i < movies.size(); ++i) {
             movieIndexMap[movies[i].id] = static_cast<int>(i);
         }
+        likeSubject.notifyLikedMoviesChanged(); // Observer: resetea recomendaciones
 
         cout << "Exito! Se cargaron " << movies.size() << " peliculas.\n";
         cout << "Indexando (indice invertido + indice de sufijos)... ";
@@ -228,9 +301,10 @@ public:
                     if (watchLater.size() > 5) cout << "  ... y " << watchLater.size() - 5 << " mas.\n";
                 }
 
-                if (!recommendedCache.empty()) {
+                const vector<int>& recommended = recEngine.recommendations();
+                if (!recommended.empty()) {
                     cout << "\n--- Recomendadas para ti ---\n";
-                    for (int id : recommendedCache) {
+                    for (int id : recommended) {
                         const Movie& m = movies[movieIndexMap.at(id)];
                         cout << "  * " << m.title << " (" << m.genre << ")\n";
                     }
@@ -247,6 +321,7 @@ public:
             if (!(cin >> option)) {
                 if (cin.eof()) { // sin mas entrada: salir en vez de loopear infinito
                     cout << "\nFin de la entrada. Saliendo...\n";
+                    saveState();
                     return;
                 }
                 cin.clear();
@@ -262,6 +337,7 @@ public:
                     string path;
                     if (!getline(cin, path)) return;
                     loadData(path);
+                    saveState();
                     break;
                 }
                 case 2:
@@ -277,6 +353,7 @@ public:
                     break;
                 case 4:
                     cout << "Saliendo...\n";
+                    saveState();
                     return;
                 default:
                     cout << "Opcion no valida.\n";
@@ -286,6 +363,29 @@ public:
     }
 
 private:
+    static string joinIds(const set<int>& ids) {
+        string out;
+        for (int id : ids) {
+            if (!out.empty()) out += ',';
+            out += to_string(id);
+        }
+        return out;
+    }
+
+    static vector<int> parseIdList(const string& s) {
+        vector<int> ids;
+        stringstream ss(s);
+        string item;
+        while (getline(ss, item, ',')) {
+            try {
+                if (!item.empty()) ids.push_back(stoi(item));
+            } catch (...) {
+                // id malformado: se ignora
+            }
+        }
+        return ids;
+    }
+
     // Orden: score descendente; empate -> orden original del dataset (id ascendente).
     static void sortRanked(vector<pair<int, int>>& ranked) {
         sort(ranked.begin(), ranked.end(),
@@ -376,10 +476,12 @@ private:
                     if (sub_choice == "1") {
                         likedMovies.insert(mid);
                         cout << "Agregado a tus Likes!\n";
-                        onLikedMoviesChanged(); // notificar cambio de likes
+                        likeSubject.notifyLikedMoviesChanged(); // Observer
+                        saveState();
                     } else if (sub_choice == "2") {
                         watchLater.insert(mid);
                         cout << "Agregado a Ver mas tarde!\n";
+                        saveState();
                     }
                 } else {
                     cout << "Indice fuera de rango.\n";
@@ -393,6 +495,7 @@ private:
 
 int main() {
     StreamingPlatform app;
+    app.restoreSession();
     app.displayUI();
     return 0;
 }
