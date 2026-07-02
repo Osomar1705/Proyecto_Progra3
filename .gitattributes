@@ -1,0 +1,12 @@
+# Normalizar finales de línea a LF en el repositorio (evita mezclar CRLF/LF)
+* text=auto eol=lf
+
+# Código y documentación como texto
+*.cpp   text
+*.h     text
+*.md    text
+*.txt   text
+*.yml   text
+
+# El dataset se trata como binario: no renormalizar (es grande y no es código)
+*.csv   binary

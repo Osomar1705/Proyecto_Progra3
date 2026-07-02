@@ -5,19 +5,19 @@
 #include <vector>
 #include <unordered_map>
 
-// Maps unique terms to the movies that contain them. Each distinct term is stored
-// once (deduplicated vocabulary) with a posting list of movie ids, instead of
-// repeating the term for every movie occurrence.
+// Mapea términos únicos a las películas que los contienen. Cada término se guarda
+// una sola vez (vocabulario deduplicado) con una posting list de ids de película,
+// en vez de repetir el término por cada aparición.
 class InvertedIndex {
 public:
-    // Register that `movieId` contains `term`. Returns the term's stable id.
-    // Movies are expected to be added in non-decreasing id order, which keeps every
-    // posting list sorted and lets duplicates collapse with an O(1) tail check.
+    // Registra que `movieId` contiene `term`. Devuelve el id estable del término.
+    // Las películas se agregan en orden de id no decreciente, lo que mantiene cada
+    // posting list ordenada y colapsa duplicados con un chequeo O(1) al final.
     int addOccurrence(const std::string& term, int movieId);
 
     int termCount() const { return static_cast<int>(vocabulary_.size()); }
 
-    // Returns the id of an exact term, or -1 if the term is not in the vocabulary.
+    // Devuelve el id de un término exacto, o -1 si no está en el vocabulario.
     int findTerm(const std::string& term) const;
 
     const std::string& term(int termId) const { return vocabulary_[termId]; }

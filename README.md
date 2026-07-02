@@ -3,11 +3,12 @@
 ## Integrantes
 - Osmar Vilchez Aguirre
 - Royer Sebastian Ramos Vargas
+- Luciana Mylene Melgarejo Quispe
 
 ## Descripción del Proyecto
-Este proyecto es una plataforma de búsqueda y administración de películas basada en un conjunto de datos real (`wiki_movie_plots_deduped.csv`, 34 886 películas).
+Plataforma de búsqueda y administración de películas sobre un conjunto de datos real (`wiki_movie_plots_deduped.csv`, 34 886 películas).
 
-El sistema carga los datos de películas, procesa texto para eliminar ruido, los indexa en un índice invertido + un índice de sufijos (Trie), y ofrece una interfaz de consola para buscar por **palabra, frase o sub-palabra**, buscar por **tags** (director / reparto / género), ver detalles, marcar como "Like" y agregar a "Ver más tarde". La sesión (likes + ver más tarde) se **persiste entre ejecuciones**.
+El sistema carga los datos, procesa el texto para eliminar ruido, lo indexa en un **índice invertido + un índice de sufijos (Trie)** y ofrece una interfaz de consola para buscar por **palabra, frase o sub-palabra**, buscar por **tags** (director / reparto / género), ver detalles, marcar **Like** y agregar a **Ver más tarde**. La sesión (likes + ver más tarde) se **persiste entre ejecuciones**.
 
 ## Estado actual
 - ✅ Carga de datos desde CSV (con soporte de campos multilínea entrecomillados)
@@ -16,10 +17,11 @@ El sistema carga los datos de películas, procesa texto para eliminar ruido, los
 - ✅ Búsqueda por palabra, frase o sub-palabra
 - ✅ Búsqueda por tag: `director:`, `cast:`, `genre:`
 - ✅ Algoritmo de importancia propio para rankear resultados
-- ✅ Visualización de resultados con paginación (5 por página)
+- ✅ Interfaz de consola con colores, cajas y paginación (5 por página)
 - ✅ Funciones "Like" y "Ver más tarde"
 - ✅ Recomendaciones basadas en gustos (patrón Observer)
 - ✅ Persistencia de la sesión entre ejecuciones
+- ✅ Carga paralela con comparación de tiempos en vivo
 
 ---
 
@@ -39,8 +41,6 @@ El pre-procesamiento se realiza en `src/DataProcessor.cpp` mediante la clase `Da
    - `clean_genre`: palabras del género
 
 > El reparto (`cast`) se incluye en el índice para poder buscar películas por actor, como pide el enunciado (búsqueda por tag de casting).
-
-Estas listas quedan listas para ser ingresadas a la estructura de datos.
 
 ---
 
@@ -71,24 +71,24 @@ al llegar al final del sufijo (nodo terminal):
 
 ---
 
-## 3. Funcionamiento de la estructura de datos
+## 3. Estructura de datos y algoritmo
 
-### Estructura elegida (dos niveles)
+### 3.1 Estructura elegida (dos niveles)
 1. **Índice invertido** (`InvertedIndex`): vocabulario deduplicado (146 631 términos únicos), cada término con una *posting list* ordenada de IDs de película. Evita repetir el término por cada aparición.
 2. **Trie de sufijos** (`Trie`): se insertan los sufijos de cada **término único** (no de cada ocurrencia). El payload (termId) vive **solo en el nodo terminal**, manteniendo los nodos intermedios en O(1). Los nodos se gestionan con `std::unique_ptr` (destrucción automática, sin `delete` manual).
 
-### Por qué esta estructura
+**Por qué esta estructura**
 - Búsqueda en O(L), con L = largo de la consulta.
 - Al indexar sufijos, encuentra coincidencias de **sub-palabra**: buscar `bar` encuentra "barco", "Zanzibar", "Barbara".
-- Separar vocabulario (índice invertido) de la búsqueda por sufijos ahorra memoria frente a insertar los sufijos de cada aparición.
+- Separar vocabulario (índice invertido) de la búsqueda por sufijos ahorra memoria frente a insertar los sufijos de cada aparición (criterio de eficiencia de **espacio**).
 
-### Búsqueda
+### 3.2 Búsqueda
 1. La consulta se limpia y se divide en tokens.
 2. Cada token desciende por el Trie hasta su nodo (O(L)) y recolecta por DFS los termIds del subárbol.
 3. Las posting lists del índice invertido resuelven las películas.
-4. Se aplica el algoritmo de importancia (sección 3.1) y se ordena.
+4. Se aplica el algoritmo de importancia y se ordena.
 
-### 3.1 Algoritmo de importancia (ranking propio)
+### 3.3 Algoritmo de importancia (ranking propio)
 
 Por cada token de la consulta, una película acumula:
 
@@ -98,9 +98,7 @@ Por cada token de la consulta, una película acumula:
 | Además, el token es **palabra exacta** de la película (`std::binary_search` sobre la posting list) | +2 |
 | Además, el token aparece dentro de una palabra del **título** | +3 |
 
-Se ordena por puntaje descendente; el empate se resuelve por el orden original del dataset. Ejemplo: buscando `bar`, las primeras posiciones son títulos con "bar" (*Wonder Bar*, *Bar 20*...), no coincidencias sueltas en la sinopsis.
-
-La búsqueda por tag (`director:nolan`, `cast:jolson`, `genre:comedy`) puntúa por cantidad de tokens presentes en el campo elegido.
+Se ordena por puntaje descendente; el empate se resuelve por el orden original del dataset. Ejemplo: buscando `bar`, las primeras posiciones son títulos con "bar" (*Wonder Bar*, *Bar 20*...), no coincidencias sueltas en la sinopsis. La búsqueda por tag puntúa por cantidad de tokens presentes en el campo elegido.
 
 ---
 
@@ -115,10 +113,25 @@ La búsqueda por tag (`director:nolan`, `cast:jolson`, `genre:comedy`) puntúa p
 
 ---
 
-## 5. Interfaz del programa
+## 5. Estructuras, herramientas y paradigmas de C++
 
-Interfaz de consola con:
-- Menú principal numerado.
+- **POO**: clases con encapsulamiento (`DataProcessor`, `InvertedIndex`, `Trie`, `StreamingPlatform`), herencia y polimorfismo mediante interfaces (`IRecommendationStrategy`, `ILikeObserver`).
+- **Programación genérica**: `parallel_map` es una plantilla (`template <T, U, Func>`) reutilizable con cualquier tipo y función.
+- **Programación paralela**: `std::thread` reparte el trabajo sobre rangos disjuntos, sin *data races*.
+- **Uso intensivo de la librería estándar (STL)**:
+  - Contenedores: `std::vector`, `std::unordered_map`, `std::unordered_set`, `std::set`, `std::string`.
+  - Punteros inteligentes: `std::unique_ptr`, `std::make_unique`.
+  - Algoritmos `<algorithm>`: `sort`, `binary_search`, `transform`, `remove_if`, `unique`, `min`.
+  - Utilidades: `std::move`, `std::make_move_iterator`, `std::function`, `std::chrono` (medición de tiempos).
+- **Organización en librerías**: cabeceras en `include/`, implementación en `src/`, `namespace ui` para la interfaz.
+
+---
+
+## 6. Interfaz del programa
+
+Interfaz de consola **con formato y color** (`namespace ui`): banner, secciones enmarcadas en cajas, filas de resultados resaltadas y ajuste de línea de la sinopsis. Usa la API de color de Windows (`SetConsoleTextAttribute`) y degrada a texto plano en otros sistemas.
+
+- Menú principal con opciones.
 - Carga de datos por ruta de archivo.
 - Búsqueda por palabra, frase, sub-palabra o tag.
 - Paginación de resultados en bloques de 5.
@@ -127,17 +140,19 @@ Interfaz de consola con:
 - Recomendaciones basadas en los "Like".
 - **Al iniciar**, restaura la sesión previa (recarga el CSV y muestra "Ver más tarde" y recomendaciones desde la primera pantalla).
 
+**Control de errores**: entrada no numérica, EOF en la entrada, consultas degeneradas (< 3 caracteres), tags desconocidos, índices fuera de rango y archivo CSV inexistente se manejan sin cerrar el programa.
+
 ### Ejemplo de uso
 1. Ejecutar el programa.
-2. Seleccionar `1` para cargar el CSV.
-3. Seleccionar `2` para buscar (p. ej. `bar`, o `cast:jolson`).
+2. `1` para cargar el CSV.
+3. `2` para buscar (p. ej. `bar`, o `cast:jolson`).
 4. Elegir una película de la lista.
 5. `1` para "Like" o `2` para "Ver más tarde".
 6. Al reabrir el programa, la sesión se restaura automáticamente.
 
 ---
 
-## 6. Cómo compilar y ejecutar
+## 7. Cómo compilar y ejecutar
 
 Desde la raíz del proyecto:
 
@@ -156,9 +171,9 @@ La sesión se guarda en `platform_state.txt` (ignorado por git) y se restaura al
 
 ---
 
-## 7. Rendimiento y Programación Paralela
+## 8. Rendimiento y Programación Paralela
 
-`parallel_map` (`include/Utils.h`) es una plantilla genérica (`template <T, U, Func>`) que reparte `f(input[i], i)` entre hilos (`std::thread`) sobre rangos disjuntos de índices, sin data races. Se usa para paralelizar el parseo y la tokenización de los registros del CSV (la lectura de disco sigue siendo secuencial: es I/O).
+`parallel_map` (`include/Utils.h`) reparte `f(input[i], i)` entre hilos (`std::thread`) sobre rangos disjuntos de índices, sin *data races*. Se usa para paralelizar el parseo y la tokenización de los registros del CSV (la lectura de disco sigue siendo secuencial: es I/O).
 
 ### Tabla de tiempos (medida real)
 Máquina de prueba: CPU de 20 hilos lógicos, Windows 11, g++ 15.2 (MinGW-w64), `-O2`. Dataset: 34 886 películas, 146 631 términos únicos. El programa imprime esta comparación en vivo en cada carga.
@@ -172,15 +187,26 @@ El speedup no es lineal porque la lectura del archivo es secuencial (cuello de b
 
 ---
 
-## 8. Observaciones finales
+## 9. Cumplimiento de la rúbrica
 
-- Interfaz de consola funcional, con control de errores (entrada inválida, EOF, consultas degeneradas) y campos multilínea del CSV.
-- Cumple pre-procesamiento, estructura de datos, pseudocódigo, algoritmo de importancia, interfaz, 4 patrones y programación paralela/genérica.
-- Trabajo futuro: paralelizar el indexado, `std::partial_sort` para el top-K, y una interfaz gráfica.
+| Criterio | Cómo se cumple | Dónde |
+|---|---|---|
+| **Funcionamiento** | Funciona con 34 886 películas; control de errores y excepciones; interfaz con color; se restaura la sesión al iniciar | `src/main.cpp` |
+| **Estructuras y herramientas** | POO, programación genérica y paralela; uso intensivo de la STL; código organizado en `include/` + `src/` y `namespace ui` | Sección 5 |
+| **Algoritmo** | Índice invertido + Trie de sufijos (eficiencia de tiempo/espacio); algoritmos STL (`sort`, `binary_search`, `unique`, `transform`); ranking de importancia propio | Secciones 3.1–3.3 |
+| **Diseño y prog. paralela** | 4 patrones (Singleton, Strategy, Observer, Facade); carga paralela + tabla comparativa de tiempos | Secciones 4 y 8 |
+| **Presentación y documentación** | GitHub con flujo de ramas y PRs; este README; referencias en APA; participación de los 3 integrantes | Repositorio + Sección 10 |
 
 ---
 
-## 9. Referencias (Formato APA)
+## 10. Trabajo futuro
+- Paralelizar el indexado (tries parciales por hilo + *merge*).
+- `std::partial_sort` para el top-K cuando el resultado es masivo.
+- Trie comprimido (radix) para reducir memoria.
+
+---
+
+## 11. Referencias (Formato APA)
 
 * Cormen, T. H., Leiserson, C. E., Rivest, R. L., & Stein, C. (2022). *Introduction to Algorithms* (4.ª ed.). MIT Press.
 * Gamma, E., Helm, R., Johnson, R., & Vlissides, J. (1994). *Design Patterns: Elements of Reusable Object-Oriented Software*. Addison-Wesley.

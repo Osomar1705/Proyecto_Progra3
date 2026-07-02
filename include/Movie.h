@@ -5,7 +5,7 @@
 #include <vector>
 
 struct Movie {
-    int id = 0; // default 0: distingue registros inválidos/sin llenar (evita UB al filtrar)
+    int id = 0; // por defecto 0: distingue registros inválidos/sin llenar (evita UB al filtrar)
     std::string title;
     std::string director;
     std::string cast;

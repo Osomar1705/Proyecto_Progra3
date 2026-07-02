@@ -10,8 +10,8 @@ void Trie::insert(const std::string& word, int termId) {
         if (!next) next = std::make_unique<TrieNode>();
         current = next.get();
     }
-    // Payload lives only at the terminal node. Suffixes of a single word are all
-    // distinct, so the only possible repeat is the same termId inserted twice.
+    // El payload vive solo en el nodo terminal. Los sufijos de una palabra son todos
+    // distintos, así que la única repetición posible es el mismo termId insertado dos veces.
     if (current->termIds.empty() || current->termIds.back() != termId) {
         current->termIds.push_back(termId);
     }
