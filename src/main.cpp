@@ -28,6 +28,7 @@
 
 using namespace std;
 
+// Utilidades de consola: color, cajas y formato de la interfaz de texto.
 namespace ui {
     const int WIDTH=64;
 
@@ -142,6 +143,8 @@ string toLowerCopy(const string& s) {
     return out;
 }
 
+// PATRON OBSERVER: observador concreto. Recalcula las recomendaciones (aplicando
+// la Strategy) cada vez que el LikeSubject notifica un cambio en los likes.
 class RecommendationEngine : public ILikeObserver {
 public:
     RecommendationEngine(const set<int>& likedMovies,
@@ -165,6 +168,9 @@ private:
 };
 
 
+// PATRON FACADE: fachada unica que orquesta carga, indices, busqueda,
+// recomendaciones y persistencia. Usa Singleton (DataProcessor), Strategy y
+// Observer (LikeSubject -> RecommendationEngine).
 class StreamingPlatform {
 private:
     InvertedIndex invIndex;
@@ -186,6 +192,7 @@ public:
     }
 
 
+    // Persistencia de la sesion (likes + ver mas tarde) entre ejecuciones.
     void saveState() const {
         ofstream out(STATE_FILE);
         if (!out.is_open()) return;
@@ -229,7 +236,8 @@ public:
             vector<Movie> seqMovies = processor.loadMoviesSequential(path);
             auto t1_seq = chrono::steady_clock::now();
             ms_seq = chrono::duration_cast<chrono::milliseconds>(t1_seq - t0_seq).count();
-            seqCount = seqMovies.size();}
+            seqCount = seqMovies.size();
+        } // seqMovies se libera aqui: la carga paralela no duplica el pico de memoria
 
         cout<<"Cargando y procesando datos en paralelo (Programacion Paralela)...\n";
         auto t0_par = chrono::steady_clock::now();
@@ -302,6 +310,10 @@ public:
             cout << "Busqueda invalida: ingresa al menos una palabra util (3+ caracteres).\n";
             return;}
 
+        // ALGORITMO DE IMPORTANCIA: por cada token, una pelicula suma +1 si aparece
+        // como sub-palabra, +2 si ademas es palabra exacta (binary_search sobre la
+        // posting list) y +3 si ademas esta dentro de una palabra del titulo.
+        // Desempate: orden original del dataset (id ascendente).
         unordered_map<int, int> scores;
         for (const auto& token : query_tokens) {
             unordered_set<int> matched = matchToken(token, invIndex, suffixIndex);

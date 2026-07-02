@@ -35,7 +35,7 @@ public:
     }
 
 private:
-    std::vector<ILikeObserver*> observers_; // no ownership: observers outlive the subject
+    std::vector<ILikeObserver*> observers_; // sin propiedad: los observadores viven mas que el subject
 };
 
 #endif // OBSERVER_H

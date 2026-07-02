@@ -6,25 +6,25 @@
 #include <vector>
 #include <unordered_map>
 
-// A suffix index over a set of terms. Each inserted word tags ONLY its terminal
-// node with a payload id, keeping intermediate nodes at O(1) space. A prefix/substring
-// query walks to the matching node and gathers every payload in the subtree via DFS.
-// Nodes are owned through unique_ptr, so the tree cannot be shallow-copied and
-// destruction is automatic (no manual delete).
+// Índice de sufijos sobre un conjunto de términos. Cada palabra insertada marca
+// SOLO su nodo terminal con un id; los nodos intermedios ocupan O(1). Una consulta
+// de prefijo/subcadena baja hasta el nodo y recolecta por DFS todos los ids del subárbol.
+// Los nodos se poseen con unique_ptr: el árbol no se puede copiar superficialmente y
+// la destrucción es automática (sin delete manual).
 struct TrieNode {
     std::unordered_map<char, std::unique_ptr<TrieNode>> children;
-    std::vector<int> termIds; // payloads stored only where a word ends (terminal node)
+    std::vector<int> termIds; // ids guardados solo donde termina una palabra (nodo terminal)
 };
 
 class Trie {
 public:
     Trie();
 
-    // Insert a word, tagging its terminal node with termId.
+    // Inserta una palabra y marca su nodo terminal con termId.
     void insert(const std::string& word, int termId);
 
-    // Collect every termId stored in the subtree reached by `query` (DFS).
-    // Returns the ids sorted and deduplicated; empty if the path does not exist.
+    // Recolecta (DFS) todos los termId del subárbol alcanzado por `query`.
+    // Devuelve los ids ordenados y sin duplicados; vacío si el camino no existe.
     std::vector<int> collect(const std::string& query) const;
 
     void clear();

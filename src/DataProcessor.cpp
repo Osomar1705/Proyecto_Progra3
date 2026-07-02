@@ -23,7 +23,7 @@ void DataProcessor::loadStopWords() {
         "so", "than", "too", "very", "s", "t", "can", "will", "just", "don", "should", "now"
     };
 
-    // Spanish Stop Words (Required by task)
+    // Stop-words en español (requerido por el enunciado)
     vector<string> spanish_stops = {
         "el", "la", "los", "las", "un", "una", "unos", "unas", "y", "e", "ni", "que",
         "en", "a", "de", "con", "por", "para", "como", "si", "o", "u", "su", "sus",
@@ -45,7 +45,7 @@ vector<string> DataProcessor::parseCSVLine(const string& line) {
         char c = line[i];
         if (c == '"') {
             if (in_quotes && i + 1 < line.length() && line[i + 1] == '"') {
-                current_cell += '"'; // Escaped quote
+                current_cell += '"'; // comilla escapada ("")
                 i++;
             } else {
                 in_quotes = !in_quotes;
